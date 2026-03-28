@@ -86,6 +86,11 @@ sim.setJointForce(mico_motor2, 50.0)
 sim.setJointTargetVelocity(mico_motor1, 0.15)
 sim.setJointTargetVelocity(mico_motor2, 0.15)
 
+# 🌟 สร้างตัวแปรบอกว่าเราผลาญเวลาไปกี่เฟรม
+sync_offset = 3 
+for _ in range(sync_offset): 
+    sim.step()
+
 for _ in range(3): sim.step()
 
 q = np.array([sim.getJointPosition(h) for h in joint_handles])
@@ -98,7 +103,7 @@ j_traj = np.zeros((6, steps))
 j_traj[:,0] = q
 gripped = False
 
-for step in range(1, steps):
+for step in range(sync_offset, steps):
     pos_cur = sim.getObjectPosition(ef_handle, -1)
     ori_cur = sim.getObjectOrientation(ef_handle, -1)
     
@@ -123,14 +128,14 @@ for step in range(1, steps):
     V_ff = np.zeros(3) if step == 0 else np.array([(ef_x[step]-ef_x[step-1])/dt, (ef_y[step]-ef_y[step-1])/dt, (ef_z[step]-ef_z[step-1])/dt])
 
     # 4. Combine Errors
-    Kp_pos, Kp_ori = 2.5, 1.5  
+    Kp_pos, Kp_ori = 5.0, 2.0  
     X_dot = np.zeros(6)
     X_dot[:3] = V_ff + (p_err * Kp_pos) 
     X_dot[3:] = w_err * Kp_ori 
 
     # Limit speed to prevent jerks
     v_norm, w_norm = np.linalg.norm(X_dot[:3]), np.linalg.norm(X_dot[3:])
-    if v_norm > 0.8: X_dot[:3] = (X_dot[:3] / v_norm) * 0.8
+    if v_norm > 2.0: X_dot[:3] = (X_dot[:3] / v_norm) * 0.8
     if w_norm > 1.5: X_dot[3:] = (X_dot[3:] / w_norm) * 1.5
 
     # 5. Jacobian & DLS
@@ -141,7 +146,7 @@ for step in range(1, steps):
     q_dot = J_dls @ X_dot
 
     # ดักคอ Joint 2 (ไหล่) ไม่ให้เหวี่ยงแรงเกินไป
-    q_dot[1] = np.clip(q_dot[1], -0.5, 0.5) 
+    q_dot[1] = np.clip(q_dot[1], -1.5, 1.5) 
 
     q_dot = np.clip(q_dot, -2.5, 2.5)
     q = q + q_dot * dt
